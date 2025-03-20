@@ -1,0 +1,10 @@
+{
+    "FIGHTER": {
+        "name" : "Fighter",
+        "moveset" : {
+            "normal" : "punch",
+            "special" : "rayblast",
+            "ultimate" : "earthpound"
+        }
+    }
+}
