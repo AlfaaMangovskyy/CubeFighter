@@ -65,6 +65,8 @@ while running:
     arena.playerB.tick()
     arena.tick()
 
+    cameraX, cameraY = arena.getCamera()
+
     for ray in arena.rays:
         ray.tick()
         if ray.destroy:
@@ -72,25 +74,79 @@ while running:
             del ray
 
     screen.fill("#030303")
+    # print(cameraX, cameraY)
+
+    if arena.playerA.move == "RAYBLAST":
+        if arena.playerA.moveTimer <= FRAMERATE:
+            d = arena.playerA.moveTimer / 60
+            pygame.draw.rect(
+                screen, "#FF3333",
+                (
+                    0, (arena.playerA.y - 1.5 * d) * arena.scale + HEIGHT // 2,
+                    WIDTH, d * arena.scale * 3,
+                )
+            )
+            pygame.draw.rect(
+                screen, "#FF4444",
+                (
+                    0, (arena.playerA.y - 1.5 * d * 0.8) * arena.scale + HEIGHT // 2,
+                    WIDTH, d * arena.scale * 3 * 0.8,
+                )
+            )
+            pygame.draw.rect(
+                screen, "#FF5555",
+                (
+                    0, (arena.playerA.y - 1.5 * d * 0.7) * arena.scale + HEIGHT // 2,
+                    WIDTH, d * arena.scale * 3 * 0.7,
+                )
+            )
 
     pygame.draw.rect(screen, "#FF0000", (
-        arena.playerA.x * arena.scale + WIDTH // 2,
-        arena.playerA.y * arena.scale + HEIGHT // 2,
+        (arena.playerA.x - 1) * arena.scale + WIDTH // 2 - cameraX,
+        (arena.playerA.y - 1) * arena.scale + HEIGHT // 2 - cameraY,
         2 * arena.scale, 2 * arena.scale,
     ))
 
+    face = "normal"
+    if arena.playerA.move:
+        face = "charging"
+    if arena.playerA.launchTimer > 0:
+        face = "impact"
+    if arena.playerA.stun > 0 and arena.playerA.stunNegative:
+        face = "stunned"
+    img = pygame.image.load(f"src/make/face/{face}.png")
+    img = pygame.transform.scale(img, (arena.scale * 2, arena.scale * 2))
+    screen.blit(img, (
+        (arena.playerA.x - 1) * arena.scale + WIDTH // 2 - cameraX,
+        (arena.playerA.y - 1) * arena.scale + HEIGHT // 2 - cameraY,
+    ))
+
     pygame.draw.rect(screen, "#0000FF", (
-        arena.playerB.x * arena.scale + WIDTH // 2,
-        arena.playerB.y * arena.scale + HEIGHT // 2,
+        (arena.playerB.x - 1) * arena.scale + WIDTH // 2 - cameraX,
+        (arena.playerB.y - 1) * arena.scale + HEIGHT // 2 - cameraY,
         2 * arena.scale, 2 * arena.scale,
+    ))
+
+    face = "normal"
+    if arena.playerB.move:
+        face = "charging"
+    if arena.playerB.launchTimer > 0:
+        face = "impact"
+    if arena.playerB.stun > 0 and arena.playerB.stunNegative:
+        face = "stunned"
+    img = pygame.image.load(f"src/make/face/{face}.png")
+    img = pygame.transform.scale(img, (arena.scale * 2, arena.scale * 2))
+    screen.blit(img, (
+        (arena.playerB.x - 1) * arena.scale + WIDTH // 2 - cameraX,
+        (arena.playerB.y - 1) * arena.scale + HEIGHT // 2 - cameraY,
     ))
 
     for hitbox in arena.hitboxes:
         if isinstance(hitbox, Platform):
             pygame.draw.line(
                 screen, "#FFFFFF",
-                (hitbox.x * arena.scale + WIDTH // 2, hitbox.y * arena.scale + HEIGHT // 2),
-                ((hitbox.x + hitbox.w) * arena.scale + WIDTH // 2, hitbox.y * arena.scale + HEIGHT // 2),
+                (hitbox.x * arena.scale + WIDTH // 2 - cameraX, hitbox.y * arena.scale + HEIGHT // 2 - cameraY),
+                ((hitbox.x + hitbox.w) * arena.scale + WIDTH // 2 - cameraX, hitbox.y * arena.scale + HEIGHT // 2 - cameraY),
                 5,
             )
 
@@ -115,8 +171,8 @@ while running:
         img = pygame.image.load(f"src/make/particle/{particle.icon}.png")
         screen.blit(
             img, (
-                particle.x * arena.scale + WIDTH // 2,
-                particle.y * arena.scale + HEIGHT // 2,
+                particle.x * arena.scale + WIDTH // 2 - cameraX,
+                particle.y * arena.scale + HEIGHT // 2 - cameraY,
             )
         )
 
@@ -145,6 +201,11 @@ while running:
     #                 rayB.y * arena.scale + HEIGHT // 2,
     #             )
     #         )
+
+    pygame.draw.circle(
+        screen, "#FFFFFF",
+        (arena.playerA.x * arena.scale + WIDTH // 2, arena.playerA.y * arena.scale + HEIGHT // 2), 5
+    )
 
     pygame.display.update()
     clock.tick(FRAMERATE)

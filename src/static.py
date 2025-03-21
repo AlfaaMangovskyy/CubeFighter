@@ -15,6 +15,11 @@ def sign(n : int | float) -> int:
 def nullf():
     print("No function defined here.")
 
+def ned(a : int | float, b : int | float):
+    if b != 0:
+        return a / b
+    return a
+
 """
 float uA = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
 float uB = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
@@ -103,9 +108,12 @@ class Arena:
     def getCamera(self) -> tuple[float, float]:
         shakeX = random.randint(5, 25) / 10 * random.choice([self.shake % 2, self.shake % 2 + 1]) * self.shakeForce * random.choice([1, -1])
         shakeY = random.randint(5, 25) / 10 * random.choice([self.shake % 2, self.shake % 2 + 1]) * self.shakeForce * random.choice([1, -1])
+        # delta = min(ned(WIDTH, abs(self.playerB.x - self.playerA.x)), ned(HEIGHT, abs(self.playerB.y - self.playerA.y))) * 0.75
+        # deltaX = delta * self.scale + WIDTH // 2
+        # deltaY = delta * self.scale + HEIGHT // 2
         return (
-            shakeX,
-            shakeY,
+            shakeX, # + deltaX
+            shakeY, # + deltaY
         )
 
     def tick(self):
@@ -241,11 +249,11 @@ class Player:
         self.damage = 0
         self.damageCounter = 0
 
-        self.move = None
-        self.moveTimer = 0
-        self.moveStartup = 0
-        self.moveActive = 0
-        self.moveStopout = 0
+        self.move : str | None = None
+        self.moveTimer : int = 0
+        # self.moveStartup = 0
+        # self.moveActive = 0
+        # self.moveStopout = 0
 
         self.character = "FIGHTER"
         self.chardata = CHARACTERS.get(self.character, {})
@@ -263,6 +271,16 @@ class Player:
         elif self.launchTimer == 0:
             self.movementY(self.gravity * self.potentialv)
             self.tilt = 0
+
+        if self.moveTimer > 0:
+            self.moveTimer -= 1
+        if self.moveTimer == 0:
+            self.move = None
+
+        if self.stun > 0:
+            self.stun -= 1
+        if self.stun == 0:
+            self.stunNegative = False
 
         if self.controller:
             self.movementX(self.speed * self.controller.axisD)
@@ -292,6 +310,28 @@ class Player:
         #         self.opponent.launch(12, 45 / 180 * math.pi)
         #         self.arena.playSound("hit")
 
+        if self.move == "RAYBLAST":
+            if self.moveTimer == FRAMERATE:
+                self.arena.playSound(f"ultimate{random.randint(1, 3)}")
+                self.arena.cameraShake(7, FRAMERATE // 4)
+                if self.y - 1.5 <= self.opponent.y <= self.y + 1.5:
+                    self.opponent.hitDamage(30)
+                    self.opponent.launch(10, 30 / 180 * math.pi * sign(self.x - self.opponent.x))
+                    self.arena.playSound("hit")
+                    self.arena.cameraShake(15, FRAMERATE // 4)
+
+                    direction = sign(self.opponent.x - self.x)
+                    for e in range(25):
+                        theta = random.randint(-45, 45) / 180 * math.pi
+                        rf = random.randint(25, 75) / 100
+                        self.arena.particle(
+                            "rayblast_red" if self.playerID == "A" else "rayblast_blue",
+                            self.opponent.x + direction * 3, self.opponent.y,
+                            direction * rf * math.cos(theta),
+                            direction * rf * math.sin(theta),
+                            FRAMERATE // 2,
+                        )
+
         if self.launchTimer > 0:
             tn = self.launchMaxTime / 15 * (15 - self.launchTimer)
             tp = self.launchMaxTime / 15 * (16 - self.launchTimer)
@@ -313,34 +353,36 @@ class Player:
     def eliminate(self):
         self.arena.particles.clear()
         for e in range(25):
-            v = random.randint(25, 75) / 100
+            v = random.randint(75, 150) / 100
             theta = math.atan2(self.y, self.x) + random.randint(-45, 45) / 180 * math.pi
             # print(theta)
             self.arena.particle(
                 "smoke_red" if self.playerID == "A" else "smoke_blue",
-                self.x, self.y, v * -math.cos(theta), v * -math.sin(theta), FRAMERATE,
+                self.x, self.y, v * -math.cos(theta), v * -math.sin(theta), FRAMERATE * 2,
             )
         self.arena.playSound("hit", 0)
         self.arena.playSound("hit", FRAMERATE // 12)
         self.arena.playSound("hit", FRAMERATE // 6)
+        self.arena.cameraShake(15, FRAMERATE // 4)
         self.reset()
 
     def movementX(self, delta : float):
-        if sign(delta) != sign(self.potentialh) and self.potentialh != 0:
-            self.potentialh = 0
-        self.potentialh += 0.05 * sign(delta)
-        self.x += delta * (1 + abs(self.potentialh))
+        if self.stun == 0:
+            if sign(delta) != sign(self.potentialh) and self.potentialh != 0:
+                self.potentialh = 0
+            self.potentialh += 0.05 * sign(delta)
+            self.x += delta * (1 + abs(self.potentialh))
 
     def movementY(self, delta : float):
         self.y += delta
         self.potentialv += 0.05
         for hitbox in self.arena.hitboxes:
             if isinstance(hitbox, Platform):
-                if hitbox.x <= self.x <= hitbox.x + hitbox.w or hitbox.x <= self.x + 2 <= hitbox.x + hitbox.w:
-                    if self.y <= hitbox.y <= self.y + 2:
-                        diff = hitbox.y - self.y - 1
+                if hitbox.x <= self.x - 1 <= hitbox.x + hitbox.w or hitbox.x <= self.x + 1 <= hitbox.x + hitbox.w:
+                    if self.y - 1 <= hitbox.y <= self.y + 1:
+                        diff = hitbox.y - self.y
                         if diff >= 0:
-                            self.y = hitbox.y - 2
+                            self.y = hitbox.y - 1
                             if not self.grounded: self.land()
                             self.potentialv = 0
                             self.grounded = True
@@ -357,6 +399,10 @@ class Player:
         self.launchTimer = 15
         self.launchMaxTime = (0.2 * self.launchV * math.sin(self.launchA))# * 1.2
         self.launchPoint = (self.x,self.y)
+
+    def hitStun(self, duration : int, negative : bool = True):
+        self.stun += duration
+        self.stunNegative = negative
 
     def jump(self):
         if self.stun == 0:
@@ -442,12 +488,31 @@ class Player:
     #     )
 
     def rayblast(self):
-        theta = math.atan2(self.opponent.y - self.y, self.opponent.x - self.x)
-        v = 0.25
-        self.arena.particle(
-            "smoke", self.x + 1, self.y + 1,
-            v * math.cos(theta), v * math.sin(theta), FRAMERATE * 2,
-        )
+        # theta = math.atan2(self.opponent.y - self.y, self.opponent.x - self.x)
+        # v = 0.25
+        # self.arena.particle(
+        #     "smoke", self.x + 0.25, self.y + 0.25,
+        #     v * math.cos(theta), v * math.sin(theta), FRAMERATE * 2,
+        # )
+
+        # hit = False
+        # d = math.sqrt((self.opponent.x - self.x) ** 2 + (self.opponent.y - self.y) ** 2)
+        # for p in range(1, 100):
+        #     q = d * (p / 100)
+        #     radX = q * math.cos(theta)
+        #     radY = q * math.sin(theta)
+        #     if math.sqrt((self.opponent.x - radX) ** 2 + (self.opponent.y - radY) ** 2) <= 2:
+        #         hit = True
+        #         break
+
+        # if hit:
+        #     self.opponent.launch(12, 85 / 180 * math.pi)
+        #     self.arena.playSound("hit")
+
+        if not self.move:
+            self.move = "RAYBLAST"
+            self.moveTimer = round(FRAMERATE * 1.5)
+            self.hitStun(round(FRAMERATE * 1.5), False)
 
 class Entity:
     def __init__(self, image : str, x : float, y : float, w : int, h : int, vx : float, vy : float, d : int = -1):
