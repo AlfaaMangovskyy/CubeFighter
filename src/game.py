@@ -87,6 +87,13 @@ while running:
                 )
             )
             pygame.draw.rect(
+                screen, "#FF3333",
+                (
+                    (arena.playerA.x - 1.5 * d) * arena.scale + WIDTH // 2, 0,
+                    d * arena.scale * 3, HEIGHT,
+                )
+            )
+            pygame.draw.rect(
                 screen, "#FF4444",
                 (
                     0, (arena.playerA.y - 1.5 * d * 0.8) * arena.scale + HEIGHT // 2,
@@ -94,10 +101,24 @@ while running:
                 )
             )
             pygame.draw.rect(
+                screen, "#FF4444",
+                (
+                    (arena.playerA.x - 1.5 * d * 0.8) * arena.scale + WIDTH // 2, 0,
+                    d * arena.scale * 3 * 0.8, HEIGHT,
+                )
+            )
+            pygame.draw.rect(
                 screen, "#FF5555",
                 (
                     0, (arena.playerA.y - 1.5 * d * 0.7) * arena.scale + HEIGHT // 2,
                     WIDTH, d * arena.scale * 3 * 0.7,
+                )
+            )
+            pygame.draw.rect(
+                screen, "#FF5555",
+                (
+                    (arena.playerA.x - 1.5 * d * 0.7) * arena.scale + WIDTH // 2, 0,
+                    d * arena.scale * 3 * 0.7, HEIGHT,
                 )
             )
 
@@ -202,10 +223,10 @@ while running:
     #             )
     #         )
 
-    pygame.draw.circle(
-        screen, "#FFFFFF",
-        (arena.playerA.x * arena.scale + WIDTH // 2, arena.playerA.y * arena.scale + HEIGHT // 2), 5
-    )
+    # pygame.draw.circle(
+    #     screen, "#FFFFFF",
+    #     (arena.playerA.x * arena.scale + WIDTH // 2, arena.playerA.y * arena.scale + HEIGHT // 2), 5
+    # )
 
     pygame.display.update()
     clock.tick(FRAMERATE)

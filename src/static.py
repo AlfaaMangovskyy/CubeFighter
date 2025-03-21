@@ -248,6 +248,7 @@ class Player:
 
         self.damage = 0
         self.damageCounter = 0
+        self.gravStun = 0
 
         self.move : str | None = None
         self.moveTimer : int = 0
@@ -264,13 +265,14 @@ class Player:
         self.reward = 0
 
     def tick(self):
-        if self.jumpTimer > 0:
-            self.jumpTimer -= 1
-            self.movementY(-self.gravity * 0.8 * (3 if self.doubleJump else 1))
-            self.potentialv = 0
-        elif self.launchTimer == 0:
-            self.movementY(self.gravity * self.potentialv)
-            self.tilt = 0
+        if self.gravStun == 0:
+            if self.jumpTimer > 0:
+                self.jumpTimer -= 1
+                self.movementY(-self.gravity * 0.8 * (3 if self.doubleJump else 1))
+                self.potentialv = 0
+            elif self.launchTimer == 0:
+                self.movementY(self.gravity * self.potentialv)
+                self.tilt = 0
 
         if self.moveTimer > 0:
             self.moveTimer -= 1
@@ -281,6 +283,9 @@ class Player:
             self.stun -= 1
         if self.stun == 0:
             self.stunNegative = False
+
+        if self.gravStun > 0:
+            self.gravStun -= 1
 
         if self.controller:
             self.movementX(self.speed * self.controller.axisD)
@@ -314,7 +319,26 @@ class Player:
             if self.moveTimer == FRAMERATE:
                 self.arena.playSound(f"ultimate{random.randint(1, 3)}")
                 self.arena.cameraShake(7, FRAMERATE // 4)
-                if self.y - 1.5 <= self.opponent.y <= self.y + 1.5:
+                if self.x - 1.5 <= self.opponent.x <= self.x + 1.5:
+                    self.opponent.hitDamage(30)
+                    self.opponent.launch(10, 60 / 180 * math.pi * sign(self.x - self.opponent.x))
+                    self.arena.playSound("hit")
+                    self.arena.cameraShake(15, FRAMERATE // 4)
+
+                    direction = sign(self.opponent.y - self.y)
+                    if direction == 0:
+                        direction = -1
+                    for e in range(25):
+                        theta = random.randint(45, 135) / 180 * math.pi
+                        rf = random.randint(25, 75) / 100
+                        self.arena.particle(
+                            "rayblast_red" if self.playerID == "A" else "rayblast_blue",
+                            self.opponent.x, self.opponent.y + direction * 1,
+                            direction * rf * math.cos(theta),
+                            direction * rf * math.sin(theta),
+                            FRAMERATE // 2,
+                        )
+                elif self.y - 1.5 <= self.opponent.y <= self.y + 1.5:
                     self.opponent.hitDamage(30)
                     self.opponent.launch(10, 30 / 180 * math.pi * sign(self.x - self.opponent.x))
                     self.arena.playSound("hit")
@@ -331,6 +355,10 @@ class Player:
                             direction * rf * math.sin(theta),
                             FRAMERATE // 2,
                         )
+
+        if self.move == "EARTHPOUND":
+            if self.moveTimer == round(FRAMERATE * 1.5):
+                self.arena.cameraShake(20, round(FRAMERATE * 1.5))
 
         if self.launchTimer > 0:
             tn = self.launchMaxTime / 15 * (15 - self.launchTimer)
@@ -404,6 +432,9 @@ class Player:
         self.stun += duration
         self.stunNegative = negative
 
+    def hitGravStun(self, duration : int):
+        self.gravStun += duration
+
     def jump(self):
         if self.stun == 0:
             if self.grounded:
@@ -466,53 +497,34 @@ class Player:
 
             self.arena.playSound("hit")
 
-    # def rayblast(self):
-    #     try: self.arena.rays.remove(self.arena.getRay(f"rayblast{self.playerID}1"))
-    #     except: pass
-    #     try: self.arena.rays.remove(self.arena.getRay(f"rayblast{self.playerID}2"))
-    #     except: pass
-    #     theta = math.atan2(self.opponent.y - self.y, self.opponent.x - self.x)
-    #     self.arena.ray(
-    #         f"rayblast{self.playerID}1",
-    #         self.x + 1, self.y + 1,
-    #         0.25 * math.cos(theta + 7 / 180 * math.pi),
-    #         0.25 * math.sin(theta + 7 / 180 * math.pi),
-    #         FRAMERATE * 4,
-    #     )
-    #     self.arena.ray(
-    #         f"rayblast{self.playerID}2",
-    #         self.x + 1, self.y + 1,
-    #         0.25 * math.cos(theta - 7 / 180 * math.pi),
-    #         0.25 * math.sin(theta - 7 / 180 * math.pi),
-    #         FRAMERATE * 4,
-    #     )
-
     def rayblast(self):
-        # theta = math.atan2(self.opponent.y - self.y, self.opponent.x - self.x)
-        # v = 0.25
-        # self.arena.particle(
-        #     "smoke", self.x + 0.25, self.y + 0.25,
-        #     v * math.cos(theta), v * math.sin(theta), FRAMERATE * 2,
-        # )
-
-        # hit = False
-        # d = math.sqrt((self.opponent.x - self.x) ** 2 + (self.opponent.y - self.y) ** 2)
-        # for p in range(1, 100):
-        #     q = d * (p / 100)
-        #     radX = q * math.cos(theta)
-        #     radY = q * math.sin(theta)
-        #     if math.sqrt((self.opponent.x - radX) ** 2 + (self.opponent.y - radY) ** 2) <= 2:
-        #         hit = True
-        #         break
-
-        # if hit:
-        #     self.opponent.launch(12, 85 / 180 * math.pi)
-        #     self.arena.playSound("hit")
 
         if not self.move:
             self.move = "RAYBLAST"
             self.moveTimer = round(FRAMERATE * 1.5)
             self.hitStun(round(FRAMERATE * 1.5), False)
+            self.hitGravStun(round(FRAMERATE * 1.5))
+            self.doubleJump = False
+            self.canDoubleJump = True
+            for e in range(25):
+                theta = random.randint(0, 360) / 180 * math.pi
+                distance = random.randint(225, 475) / 100
+                self.arena.particle(
+                    "smoke_red" if self.playerID == "A" else "smoke_blue",
+                    self.x - 0.75 + distance * math.cos(theta),
+                    self.y - 0.75 + distance * math.sin(theta),
+                    distance * -math.cos(theta) * (1 / (FRAMERATE // 2)),
+                    distance * -math.sin(theta) * (1 / (FRAMERATE // 2)),
+                    FRAMERATE // 2,
+                )
+
+    def earthpound(self):
+
+        if not self.move:
+            self.move = "EARTHPOUND"
+            self.moveTimer = round(FRAMERATE * 3)
+            self.hitStun(round(FRAMERATE * 1.5), False)
+            self.hitGravStun(round(FRAMERATE * 1.5))
 
 class Entity:
     def __init__(self, image : str, x : float, y : float, w : int, h : int, vx : float, vy : float, d : int = -1):
