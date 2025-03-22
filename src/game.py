@@ -1,3 +1,5 @@
+import os
+os.environ["SDL_JOYSTICK_HIDAPI_JOYCON"] = "1"
 import pygame
 from static import *
 
@@ -18,6 +20,14 @@ clock = pygame.time.Clock()
 arena = Arena([
     Platform(-12, 7, 24),
 ])
+
+def getFont(size : int) -> pygame.font.Font:
+    return pygame.font.Font(f"src/make/fontJ.otf", size)
+def getDigitFont(size : int) -> pygame.font.Font:
+    return pygame.font.Font(f"src/make/fontD.ttf", size)
+
+print(pygame.joystick.get_count())
+print(list(pygame.joystick.Joystick(n) for n in range(pygame.joystick.get_count())))
 
 connected = 0
 for joystick_id in range(pygame.joystick.get_count()):
@@ -41,6 +51,18 @@ while running:
                 pygame.quit()
                 break
 
+            if e.key == pygame.K_s:
+                arena.playerB.jump()
+            if e.key == pygame.K_w:
+                func = getattr(arena.playerB, arena.playerB.chardata.get("moveset", {}).get("normal", "punch"), nullf)
+                func()
+            if e.key == pygame.K_q:
+                func = getattr(arena.playerB, arena.playerB.chardata.get("moveset", {}).get("special", "rayblast"), nullf)
+                func()
+            if e.key == pygame.K_e:
+                func = getattr(arena.playerB, arena.playerB.chardata.get("moveset", {}).get("ultimate", "earthpound"), nullf)
+                func()
+
         if e.type == pygame.JOYBUTTONDOWN:
             if e.joy == 0:
                 arena.playerA.controller.buttonDown(e.button)
@@ -60,6 +82,12 @@ while running:
                 arena.playerB.controller.joystickAxis(e.axis, round(e.value, 2))
 
     if not running: break
+
+    keymap = pygame.key.get_pressed()
+    if keymap[pygame.K_a]:
+        arena.playerB.movementX(-arena.playerB.speed)
+    if keymap[pygame.K_d]:
+        arena.playerB.movementX(arena.playerB.speed)
 
     arena.playerA.tick()
     arena.playerB.tick()
@@ -122,6 +150,52 @@ while running:
                 )
             )
 
+    if arena.playerB.move == "RAYBLAST":
+        if arena.playerB.moveTimer <= FRAMERATE:
+            d = arena.playerB.moveTimer / 60
+            pygame.draw.rect(
+                screen, "#3333FF",
+                (
+                    0, (arena.playerB.y - 1.5 * d) * arena.scale + HEIGHT // 2,
+                    WIDTH, d * arena.scale * 3,
+                )
+            )
+            pygame.draw.rect(
+                screen, "#3333FF",
+                (
+                    (arena.playerB.x - 1.5 * d) * arena.scale + WIDTH // 2, 0,
+                    d * arena.scale * 3, HEIGHT,
+                )
+            )
+            pygame.draw.rect(
+                screen, "#4444FF",
+                (
+                    0, (arena.playerB.y - 1.5 * d * 0.8) * arena.scale + HEIGHT // 2,
+                    WIDTH, d * arena.scale * 3 * 0.8,
+                )
+            )
+            pygame.draw.rect(
+                screen, "#4444FF",
+                (
+                    (arena.playerB.x - 1.5 * d * 0.8) * arena.scale + WIDTH // 2, 0,
+                    d * arena.scale * 3 * 0.8, HEIGHT,
+                )
+            )
+            pygame.draw.rect(
+                screen, "#5555FF",
+                (
+                    0, (arena.playerB.y - 1.5 * d * 0.7) * arena.scale + HEIGHT // 2,
+                    WIDTH, d * arena.scale * 3 * 0.7,
+                )
+            )
+            pygame.draw.rect(
+                screen, "#5555FF",
+                (
+                    (arena.playerB.x - 1.5 * d * 0.7) * arena.scale + WIDTH // 2, 0,
+                    d * arena.scale * 3 * 0.7, HEIGHT,
+                )
+            )
+
     pygame.draw.rect(screen, "#FF0000", (
         (arena.playerA.x - 1) * arena.scale + WIDTH // 2 - cameraX,
         (arena.playerA.y - 1) * arena.scale + HEIGHT // 2 - cameraY,
@@ -135,9 +209,9 @@ while running:
         face = "impact"
     if arena.playerA.stun > 0 and arena.playerA.stunNegative:
         face = "stunned"
-    img = pygame.image.load(f"src/make/face/{face}.png")
-    img = pygame.transform.scale(img, (arena.scale * 2, arena.scale * 2))
-    screen.blit(img, (
+    imgA = pygame.image.load(f"src/make/face/{face}.png")
+    imgA = pygame.transform.scale(imgA, (arena.scale * 2, arena.scale * 2))
+    screen.blit(imgA, (
         (arena.playerA.x - 1) * arena.scale + WIDTH // 2 - cameraX,
         (arena.playerA.y - 1) * arena.scale + HEIGHT // 2 - cameraY,
     ))
@@ -155,9 +229,9 @@ while running:
         face = "impact"
     if arena.playerB.stun > 0 and arena.playerB.stunNegative:
         face = "stunned"
-    img = pygame.image.load(f"src/make/face/{face}.png")
-    img = pygame.transform.scale(img, (arena.scale * 2, arena.scale * 2))
-    screen.blit(img, (
+    imgB = pygame.image.load(f"src/make/face/{face}.png")
+    imgB = pygame.transform.scale(imgB, (arena.scale * 2, arena.scale * 2))
+    screen.blit(imgB, (
         (arena.playerB.x - 1) * arena.scale + WIDTH // 2 - cameraX,
         (arena.playerB.y - 1) * arena.scale + HEIGHT // 2 - cameraY,
     ))
@@ -192,10 +266,50 @@ while running:
         img = pygame.image.load(f"src/make/particle/{particle.icon}.png")
         screen.blit(
             img, (
-                particle.x * arena.scale + WIDTH // 2 - cameraX,
-                particle.y * arena.scale + HEIGHT // 2 - cameraY,
+                particle.x * arena.scale + WIDTH // 2 - cameraX - img.get_width() // 2,
+                particle.y * arena.scale + HEIGHT // 2 - cameraY - img.get_height() // 2,
             )
         )
+
+    damageAcolor = "#FFFFFF"
+    if arena.playerA.damage >= 125:
+        damageAcolor = "#FFFF00"
+    if arena.playerA.damage >= 175:
+        damageAcolor = "#FF0000"
+    damageA = getDigitFont(75).render(
+        f"{arena.playerA.damage}%", 0, damageAcolor
+    )
+    screen.blit(
+        damageA, (150, 25)
+    )
+
+    damageBcolor = "#FFFFFF"
+    if arena.playerB.damage >= 125:
+        damageBcolor = "#FFFF00"
+    if arena.playerB.damage >= 175:
+        damageBcolor = "#FF0000"
+    damageB = getDigitFont(75).render(
+        f"{arena.playerB.damage}%", 0, damageBcolor
+    )
+    screen.blit(
+        damageB, (WIDTH - 150 - damageB.get_width(), 25)
+    )
+
+    pygame.draw.rect(
+        screen, "#FF0000",
+        (25, 25, 100, 100)
+    )
+    screen.blit(
+        imgA, (25, 25)
+    )
+
+    pygame.draw.rect(
+        screen, "#0000FF",
+        (WIDTH - 125, 25, 100, 100)
+    )
+    screen.blit(
+        imgB, (WIDTH - 125, 25)
+    )
 
     # if DEBUG:
     #     for ray in arena.rays:

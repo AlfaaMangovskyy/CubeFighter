@@ -194,6 +194,9 @@ class Controller:
             elif id == 3:
                 func = getattr(self.player, self.player.chardata.get("moveset", {}).get("special", "rayblast"), nullf)
                 func()
+            elif id == 2:
+                func = getattr(self.player, self.player.chardata.get("moveset", {}).get("ultimate", "earthpound"), nullf)
+                func()
             else:
                 print(id)
 
@@ -249,6 +252,7 @@ class Player:
         self.damage = 0
         self.damageCounter = 0
         self.gravStun = 0
+        self.shield = 0
 
         self.move : str | None = None
         self.moveTimer : int = 0
@@ -287,6 +291,9 @@ class Player:
         if self.gravStun > 0:
             self.gravStun -= 1
 
+        if self.shield > 0:
+            self.shield -= 1
+
         if self.controller:
             self.movementX(self.speed * self.controller.axisD)
 
@@ -319,9 +326,9 @@ class Player:
             if self.moveTimer == FRAMERATE:
                 self.arena.playSound(f"ultimate{random.randint(1, 3)}")
                 self.arena.cameraShake(7, FRAMERATE // 4)
-                if self.x - 1.5 <= self.opponent.x <= self.x + 1.5:
+                if self.x - 1.5 <= self.opponent.x + 1 and self.opponent.x - 1 <= self.x + 1.5:
                     self.opponent.hitDamage(30)
-                    self.opponent.launch(10, 60 / 180 * math.pi * sign(self.x - self.opponent.x))
+                    self.opponent.launch(0.1 * self.opponent.damage, 60 / 180 * math.pi * sign(self.x - self.opponent.x))
                     self.arena.playSound("hit")
                     self.arena.cameraShake(15, FRAMERATE // 4)
 
@@ -338,9 +345,9 @@ class Player:
                             direction * rf * math.sin(theta),
                             FRAMERATE // 2,
                         )
-                elif self.y - 1.5 <= self.opponent.y <= self.y + 1.5:
+                elif self.y - 1.5 <= self.opponent.y + 1 and self.opponent.y - 1 <= self.y + 1.5:
                     self.opponent.hitDamage(30)
-                    self.opponent.launch(10, 30 / 180 * math.pi * sign(self.x - self.opponent.x))
+                    self.opponent.launch(0.1 * self.opponent.damage, 30 / 180 * math.pi * sign(self.x - self.opponent.x))
                     self.arena.playSound("hit")
                     self.arena.cameraShake(15, FRAMERATE // 4)
 
@@ -357,8 +364,27 @@ class Player:
                         )
 
         if self.move == "EARTHPOUND":
+            # self.arena.particle("smoke", self.x, self.y, 0, 0, 1)
             if self.moveTimer == round(FRAMERATE * 1.5):
                 self.arena.cameraShake(20, round(FRAMERATE * 1.5))
+            if self.moveTimer <= round(FRAMERATE * 1.5):
+                if self.moveTimer % (FRAMERATE // 3) == 1:
+                    if self.opponent.grounded and self.opponent.launchTimer == 0:
+                        self.opponent.hitDamage(7)
+                        self.opponent.hitStun(FRAMERATE)
+                        self.opponent.launch(2.5, 85 * sign(self.opponent.x - self.x) / 180 * math.pi)
+                        self.arena.playSound("hit")
+
+        if self.move == "TAKEOFF":
+            self.y += -self.speed * 2
+            self.potentialv = 0
+            self.arena.particle(
+                "potential",
+                self.x, self.y, 0, 0.25, FRAMERATE * 1
+            )
+            # if self.launchTimer == 0:
+            #     self.moveTimer = 0
+            #     self.move = None
 
         if self.launchTimer > 0:
             tn = self.launchMaxTime / 15 * (15 - self.launchTimer)
@@ -422,6 +448,7 @@ class Player:
                             self.y = hitbox.y
 
     def launch(self, v : float, a : float):
+        if self.shield > 0: return
         self.launchV = v
         self.launchA = a
         self.launchTimer = 15
@@ -429,10 +456,12 @@ class Player:
         self.launchPoint = (self.x,self.y)
 
     def hitStun(self, duration : int, negative : bool = True):
+        if self.shield > 0: return
         self.stun += duration
         self.stunNegative = negative
 
     def hitGravStun(self, duration : int):
+        if self.shield > 0: return
         self.gravStun += duration
 
     def jump(self):
@@ -479,6 +508,7 @@ class Player:
         self.reward = 0
 
     def hitDamage(self, amount : int):
+        if self.shield > 0: return
         self.damage += amount
         if self.damage > 200:
             self.damage = 200
@@ -488,11 +518,11 @@ class Player:
     def punch(self):
         distance = math.sqrt((self.x - self.opponent.x) ** 2 + (self.y - self.opponent.y) ** 2)
         if distance <= 2.5:
-            self.opponent.hitDamage(7)
+            self.opponent.hitDamage(3)
             self.potentialh *= 0.75
 
             self.opponent.launch(
-                self.opponent.damage * 0.2, sign(self.x - self.opponent.x) * 15 / 180 * math.pi
+                self.opponent.damage * 0.1, sign(self.x - self.opponent.x) * 15 / 180 * math.pi
             )
 
             self.arena.playSound("hit")
@@ -511,8 +541,8 @@ class Player:
                 distance = random.randint(225, 475) / 100
                 self.arena.particle(
                     "smoke_red" if self.playerID == "A" else "smoke_blue",
-                    self.x - 0.75 + distance * math.cos(theta),
-                    self.y - 0.75 + distance * math.sin(theta),
+                    self.x + distance * math.cos(theta),
+                    self.y + distance * math.sin(theta),
                     distance * -math.cos(theta) * (1 / (FRAMERATE // 2)),
                     distance * -math.sin(theta) * (1 / (FRAMERATE // 2)),
                     FRAMERATE // 2,
@@ -523,8 +553,55 @@ class Player:
         if not self.move:
             self.move = "EARTHPOUND"
             self.moveTimer = round(FRAMERATE * 3)
-            self.hitStun(round(FRAMERATE * 1.5), False)
-            self.hitGravStun(round(FRAMERATE * 1.5))
+            self.hitStun(round(FRAMERATE * 3), False)
+            self.hitGravStun(round(FRAMERATE * 3))
+            self.doubleJump = False
+            self.canDoubleJump = True
+            for e in range(25):
+                theta = random.randint(0, 360) / 180 * math.pi
+                distance = random.randint(450, 850) / 100
+                self.arena.particle(
+                    "smoke",
+                    self.x + distance * math.cos(theta),
+                    self.y + distance * math.sin(theta),
+                    distance * -math.cos(theta) * (1 / round(FRAMERATE * 1.5)),
+                    distance * -math.sin(theta) * (1 / round(FRAMERATE * 1.5)),
+                    round(FRAMERATE * 1.5),
+                )
+
+    def takeoff(self):
+
+        if not self.move:
+            self.move = "TAKEOFF"
+            self.moveTimer = round(FRAMERATE * 0.75)
+            self.arena.playSound(f"ultimate{random.randint(1, 3)}")
+            # self.hitStun(round(FRAMERATE * 1), False)
+            self.doubleJump = False
+            self.canDoubleJump = True
+
+            d = math.sqrt((self.x - self.opponent.x) ** 2 + (self.y - self.opponent.y) ** 2)
+            director = 45 * -sign(self.opponent.x - self.x) / 180 * math.pi
+            if sign(self.opponent.x - self.x) == 0:
+                director = 85 / 180 * math.pi
+            if d <= 3.5:
+                self.arena.playSound("hit")
+                self.opponent.launch(
+                    7.5, director
+                )
+                self.opponent.hitDamage(12)
+                self.opponent.hitStun(round(FRAMERATE * 0.75))
+
+            self.potentialv = 0
+
+            for e in range(25):
+                theta = random.randint(225, 315) / 180 * math.pi
+                v = random.randint(25, 125) / 100
+                self.arena.particle(
+                    "smoke",
+                    self.x, self.y - 1,
+                    v * math.cos(theta), -v * math.sin(theta),
+                    round(FRAMERATE * 0.75),
+                )
 
 class Entity:
     def __init__(self, image : str, x : float, y : float, w : int, h : int, vx : float, vy : float, d : int = -1):
