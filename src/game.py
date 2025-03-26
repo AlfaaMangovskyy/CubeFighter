@@ -95,11 +95,11 @@ while running:
 
     cameraX, cameraY = arena.getCamera()
 
-    for ray in arena.rays:
-        ray.tick()
-        if ray.destroy:
-            arena.rays.remove(ray)
-            del ray
+    # for ray in arena.rays:
+    #     ray.tick()
+    #     if ray.destroy:
+    #         arena.rays.remove(ray)
+    #         del ray
 
     screen.fill("#030303")
     # print(cameraX, cameraY)
@@ -195,6 +195,13 @@ while running:
                     d * arena.scale * 3 * 0.7, HEIGHT,
                 )
             )
+
+    for entity in arena.entities:
+        img = pygame.image.load(f"src/make/entity/{entity.image}.png")
+        screen.blit(img, (
+            entity.x * arena.scale + WIDTH // 2, # - img.get_width() // 2
+            entity.y * arena.scale + HEIGHT // 2, # - img.get_height() // 2
+        ))
 
     pygame.draw.rect(screen, "#FF0000", (
         (arena.playerA.x - 1) * arena.scale + WIDTH // 2 - cameraX,
@@ -310,6 +317,14 @@ while running:
     screen.blit(
         imgB, (WIDTH - 125, 25)
     )
+
+    if arena.playerA.specialCommunicate > 0:
+        rechargedIcon = pygame.image.load(f"src/make/recharged.png")
+        fluctuate = (arena.playerA.specialCommunicate / 2) % 5 * 1.5
+        screen.blit(rechargedIcon, (
+            (arena.playerA.x - 0.5) * arena.scale + WIDTH // 2,
+            (arena.playerA.y - 2.5) * arena.scale + HEIGHT // 2 + fluctuate,
+        ))
 
     # if DEBUG:
     #     for ray in arena.rays:

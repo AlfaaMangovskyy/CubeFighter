@@ -64,7 +64,8 @@ class Arena:
         self.scale = 50
 
         self.sounds : list[str] = []
-        self.rays : list[Ray] = []
+        # self.rays : list[Ray] = []
+        self.entities : list[Entity] = []
 
         self.particles : list[Particle] = []
         self.shake = 0
@@ -84,7 +85,8 @@ class Arena:
         self.scale = 50
 
         self.sounds : list[str] = []
-        self.rays : list[Ray] = []
+        # self.rays : list[Ray] = []
+        self.entities : list[Entity] = []
 
         self.particles : list[Particle] = []
         self.shake = 0
@@ -122,6 +124,12 @@ class Arena:
             if self.shake == 0:
                 self.shakeForce = 0
                 self.shakeDuration = 0
+
+        for entity in self.entities:
+            entity.tick()
+            if entity.destroy:
+                self.entities.remove(entity)
+                del entity
 
     def getRay(self, id : str):
         ret : Ray | None = None
@@ -189,14 +197,17 @@ class Controller:
             if id == 1:
                 self.player.jump()
             elif id == 0:
-                func = getattr(self.player, self.player.chardata.get("moveset", {}).get("normal", "punch"), nullf)
-                func()
+                # func = getattr(self.player, self.player.chardata.get("moveset", {}).get("normal", "punch"), nullf)
+                # func()
+                self.player.moveNormal()
             elif id == 3:
-                func = getattr(self.player, self.player.chardata.get("moveset", {}).get("special", "rayblast"), nullf)
-                func()
+                # func = getattr(self.player, self.player.chardata.get("moveset", {}).get("special", "rayblast"), nullf)
+                # func()
+                self.player.moveSpecial()
             elif id == 2:
-                func = getattr(self.player, self.player.chardata.get("moveset", {}).get("ultimate", "earthpound"), nullf)
-                func()
+                # func = getattr(self.player, self.player.chardata.get("moveset", {}).get("ultimate", "earthpound"), nullf)
+                # func()
+                self.player.moveUltimate()
             else:
                 print(id)
 
@@ -254,6 +265,9 @@ class Player:
         self.gravStun = 0
         self.shield = 0
 
+        self.specialCounter = 0
+        self.specialCommunicate = 0
+
         self.move : str | None = None
         self.moveTimer : int = 0
         # self.moveStartup = 0
@@ -267,6 +281,20 @@ class Player:
 
         self.hp = 0
         self.reward = 0
+
+    def moveNormal(self):
+        getattr(self, CHARACTERS.get(self.character, {}).get("moveset", {}).get("normal", "punch"))()
+
+    def moveSpecial(self):
+        if self.specialCounter == 0:
+            getattr(self, CHARACTERS.get(self.character, {}).get("moveset", {}).get("special", "rayblast"))()
+            self.specialCounter = FRAMERATE * 20
+            self.specialCommunicate = 0
+
+    def moveUltimate(self):
+        if self.reward == 300:
+            getattr(self, CHARACTERS.get(self.character, {}).get("moveset", {}).get("ultimate", "earthpound"))()
+            self.reward = 0
 
     def tick(self):
         if self.gravStun == 0:
@@ -282,6 +310,14 @@ class Player:
             self.moveTimer -= 1
         if self.moveTimer == 0:
             self.move = None
+
+        if self.specialCounter > 0:
+            self.specialCounter -= 1
+            if self.specialCounter == 0:
+                self.specialCommunicate = FRAMERATE * 2
+
+        if self.specialCommunicate > 0:
+            self.specialCommunicate -= 1
 
         if self.stun > 0:
             self.stun -= 1
@@ -512,6 +548,9 @@ class Player:
         self.damage += amount
         if self.damage > 200:
             self.damage = 200
+        self.opponent.reward += amount
+        if self.opponent.reward > 300:
+            self.opponent.reward = 300
 
     ################################################
 
@@ -526,6 +565,17 @@ class Player:
             )
 
             self.arena.playSound("hit")
+            for e in range(10):
+                theta = random.randint(-25, 25) / 180 * math.pi
+                directorial = sign(self.opponent.x - self.x)
+                v = random.randint(25, 50) * self.opponent.damage / 10000
+                self.arena.particle(
+                    "smoke_red" if self.playerID == "A" else "smoke_blue",
+                    self.opponent.x + directorial, self.opponent.y,
+                    v * math.cos(theta) * directorial,
+                    v * math.sin(theta) * directorial,
+                    round(FRAMERATE * 0.25),
+                )
 
     def rayblast(self):
 
